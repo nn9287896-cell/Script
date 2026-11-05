@@ -1,7 +1,6 @@
 -- ============================================================
--- NIGHTSAKEN v62.4 FULL MERGED
--- by molettao5 GODSAKEN, duongji1, auto backstab v4
--- CoolKid hitbox 0.05s + Sixer distance 5.0 + FOV 30-120 + Button Hide/Show
+-- NIGHTSAKEN v62.6 - BLOCK 0.001s + COLORPICKER MÀU HITBOX
+-- Chạm hitbox vẫn đổi xanh lá cố định
 -- ============================================================
 
 local Players      = game:GetService("Players")
@@ -44,18 +43,17 @@ local CONFIG = {
 }
 
 local KILLER_HITBOX = {
-    ["CoolKid"]   = { dura = 0.05, life = 0.05, width = 5, length = 5, height = 6 },
+    ["CoolKid"]   = { dura = 0.05, life = 0.05, width = 5, length = 7, height = 6 },
     ["Slasher"]   = { dura = 0.35, life = 0.35 },
     ["1x1x1x1"]   = { dura = 0.45, life = 0.45 },
     ["JohnDoe"]   = { dura = 0.45, life = 0.45 },
-    ["John Doe"]  = { dura = 0.45, life = 0.45 },
+    ["John Doe"]  = { dura = 0.46, life = 0.46 },
     ["Nosferatu"] = { dura = 0.42, life = 0.42 },
-    ["Sixer"]     = { dura = 0.42, life = 0.42, distance = 5.0 },
+    ["Sixer"]     = { dura = 0.43, life = 0.43, distance = 6.0 },
     ["Noli"]      = { dura = 0.42, life = 0.42 },
-    ["Azure"]     = { dura = 0.35, life = 0.35 },
+    ["Azure"]     = { dura = 0.36, life = 0.36 },
 }
-local DEFAULT_HITBOX = { dura = 0.25, life = 0.25 }
-
+local DEFAULT_HITBOX = { dura = 0.26, life = 0.26 }
 local function getKillerHitbox(killerName)
     if not killerName then return DEFAULT_HITBOX end
     for name, val in pairs(KILLER_HITBOX) do
@@ -135,7 +133,7 @@ local function spamBlock(duration)
         local endTime = tick() + duration
         while tick() < endTime do
             fireBlock()
-            task.wait(0.008)
+            task.wait(0.001)
         end
         blockSpamThread = nil
     end)
@@ -190,6 +188,14 @@ local function makeHitboxAndCheck(killerModel, onDetected)
                 pcall(function()
                     hb.Color = CONFIG.HitboxHitColor
                     if sb then sb.Color3 = CONFIG.HitboxHitColor end
+                end)
+                fireBlock()
+                task.spawn(function()
+                    local spamEnd = tick() + 0.05
+                    while tick() < spamEnd do
+                        fireBlock()
+                        task.wait(0.001)
+                    end
                 end)
                 if isCoolKid then spamBlock(0.15) end
                 if onDetected then onDetected() end
@@ -962,6 +968,10 @@ combatTab:CreateSlider({ name = "Hitbox Multiplier", range = {0.1,5}, increment 
 combatTab:CreateSlider({ name = "Hitbox Distance", range = {1,20}, increment = 0.5, currentValue = 3, callback = function(v) CONFIG.HitboxDistance = v end })
 combatTab:CreateSlider({ name = "Hitbox Transparency", range = {0,1}, increment = 0.05, currentValue = 0.8, callback = function(v) CONFIG.HitboxTransparency = v end })
 combatTab:CreateSlider({ name = "Outline Transparency", range = {0,1}, increment = 0.05, currentValue = 0.6, callback = function(v) CONFIG.OutlineTransparencyValue = v end })
+
+combatTab:CreateSection("Hitbox Color")
+combatTab:CreateColorPicker({ name = "Hitbox Color", currentValue = CONFIG.HitboxColor, callback = function(v) CONFIG.HitboxColor = v end })
+
 combatTab:CreateToggle({ name = "Debug Log", currentValue = true, callback = function(v) CONFIG.DEBUG = v end })
 
 combatTab:CreateSection("Auto Backstab v4")
@@ -1199,4 +1209,4 @@ LocalPlayer.CharacterAdded:Connect(function()
     updateAutoBlockButtonVisibility()
 end)
 
-print("[NIGHTSAKEN-v62.4] LOADED - CoolKid 0.05s + Sixer 5.0 + FOV 30-120 + Button Hide/Show")
+print("[NIGHTSAKEN-v62.6] LOADED - Block 0.001s + ColorPicker màu hitbox + chạm hitbox xanh lá")
