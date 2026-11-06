@@ -1,7 +1,5 @@
 -- ============================================================
--- NIGHTSAKEN v62.4 FULL MERGED
--- by molettao5 GODSAKEN, duongji1, auto backstab v4
--- CoolKid hitbox 0.05s + Sixer distance 5.0 + FOV 30-120 + Button Hide/Show
+-- NIGHTSAKEN v63.2 - NOLI 0.37s + FIXSAKEN AUTOBLOCK + SPAM CÂN BẰNG
 -- ============================================================
 
 local Players      = game:GetService("Players")
@@ -44,17 +42,17 @@ local CONFIG = {
 }
 
 local KILLER_HITBOX = {
-    ["CoolKid"]   = { dura = 0.05, life = 0.05, width = 5, length = 5, height = 6 },
+    ["CoolKid"]   = { dura = 0.05, life = 0.05, width = 5, length = 7, height = 6 },
     ["Slasher"]   = { dura = 0.35, life = 0.35 },
     ["1x1x1x1"]   = { dura = 0.45, life = 0.45 },
     ["JohnDoe"]   = { dura = 0.45, life = 0.45 },
     ["John Doe"]  = { dura = 0.45, life = 0.45 },
     ["Nosferatu"] = { dura = 0.42, life = 0.42 },
-    ["Sixer"]     = { dura = 0.42, life = 0.42, distance = 5.0 },
-    ["Noli"]      = { dura = 0.42, life = 0.42 },
+    ["Sixer"]     = { dura = 0.42, life = 0.42, distance = 6.0 },
+    ["Noli"]      = { dura = 0.37, life = 0.37 },
     ["Azure"]     = { dura = 0.35, life = 0.35 },
 }
-local DEFAULT_HITBOX = { dura = 0.25, life = 0.25 }
+local DEFAULT_HITBOX = { dura = 0.26, life = 0.26 }
 
 local function getKillerHitbox(killerName)
     if not killerName then return DEFAULT_HITBOX end
@@ -99,32 +97,11 @@ local function getRemote()
 end
 
 local function fireBlock()
-    local abilityContainer = MainUI and MainUI:FindFirstChild("AbilityContainer")
-    local blockBtn = abilityContainer and abilityContainer:FindFirstChild("Block")
-    if blockBtn then
-        local clickBtn = blockBtn:FindFirstChildOfClass("ImageButton") or blockBtn:FindFirstChildOfClass("TextButton") or blockBtn
-        if clickBtn and (clickBtn:IsA("ImageButton") or clickBtn:IsA("TextButton")) then
-            local fired = false
-            if firesignal then
-                pcall(function()
-                    firesignal(clickBtn.MouseButton1Click)
-                    firesignal(clickBtn.MouseButton1Down)
-                    firesignal(clickBtn.MouseButton1Up)
-                    fired = true
-                end)
-            end
-            if not fired then
-                pcall(function()
-                    clickBtn.MouseButton1Click:Fire()
-                    clickBtn.MouseButton1Down:Fire()
-                end)
-            end
-            return true
-        end
-    end
-    local re = getRemote()
-    if not re then return false end
-    pcall(function() re:FireServer(unpack({"UseActorAbility",{buffer.fromstring("\3\5\0\0\0Block")}})) end)
+    local remote = getRemote()
+    if not remote then return false end
+    pcall(function()
+        remote:FireServer(unpack({"UseActorAbility", {buffer.fromstring("\003\005\000\000\000Block")}}))
+    end)
     return true
 end
 
@@ -135,7 +112,7 @@ local function spamBlock(duration)
         local endTime = tick() + duration
         while tick() < endTime do
             fireBlock()
-            task.wait(0.008)
+            task.wait(0.001)
         end
         blockSpamThread = nil
     end)
@@ -146,7 +123,6 @@ local function makeHitboxAndCheck(killerModel, onDetected)
     local killerRoot = killerModel:FindFirstChild("HumanoidRootPart") or killerModel:FindFirstChild("RootPart")
     if not killerRoot then return end
     local hbCfg = getKillerHitbox(killerModel.Name)
-    local isCoolKid = string.find(killerModel.Name, "CoolKid", 1, true) ~= nil
     local m = CONFIG.HitboxMultiplier or 1
     local hbWidth = hbCfg.width or CONFIG.HitboxWidth
     local hbLength = hbCfg.length or CONFIG.HitboxLength
@@ -191,7 +167,12 @@ local function makeHitboxAndCheck(killerModel, onDetected)
                     hb.Color = CONFIG.HitboxHitColor
                     if sb then sb.Color3 = CONFIG.HitboxHitColor end
                 end)
-                if isCoolKid then spamBlock(0.15) end
+                -- BLOCK CÂN BẰNG: 4 phát + 0.05s spam
+                fireBlock()
+                fireBlock()
+                fireBlock()
+                fireBlock()
+                spamBlock(0.05)
                 if onDetected then onDetected() end
                 break
             end
@@ -200,45 +181,47 @@ local function makeHitboxAndCheck(killerModel, onDetected)
     end)
 end
 
+local lastAbilityLastUsed = nil
+local lastAbilitiesUsed = nil
+local blockLocked = false
+
 local function checkKillerAttackC00l()
     local killers = workspace:FindFirstChild("Players") and workspace.Players:FindFirstChild("Killers")
     if not killers then return end
     local killer = killers:GetChildren()[1]
     if not killer or not killer:IsA("Model") then return end
-    local killerName = killer.Name
-    local isCoolKid = string.find(killerName, "CoolKid", 1, true) ~= nil
-    local a = killer:GetAttribute("AbilityLastUsed") or 0
-    local b = killer:GetAttribute("AbilitiesUsed") or 0
-    if isCoolKid then
-        local ckr = killer:FindFirstChild("HumanoidRootPart") or killer:FindFirstChild("RootPart")
-        if ckr and LocalRoot then
-            local dist = (ckr.Position - LocalRoot.Position).Magnitude
-            if dist < 20 then
-                fireBlock()
-                task.spawn(function() makeHitboxAndCheck(killer, function() fireBlock() end) end)
-            end
-        end
-        if a > (lastAbilityUsed or 0) then
-            task.spawn(function() makeHitboxAndCheck(killer, function() fireBlock() end) end)
-        end
-        lastAbilityUsed = a; lastAbilitiesUsed = b
+    local currentAbilityLastUsed = killer:GetAttribute("AbilityLastUsed") or 0
+    local currentAbilitiesUsed = killer:GetAttribute("AbilitiesUsed") or 0
+    if lastAbilityLastUsed == nil then
+        lastAbilityLastUsed = currentAbilityLastUsed
+        lastAbilitiesUsed = currentAbilitiesUsed
         return
     end
-    if lastAbilityUsed == nil then lastAbilityUsed = a; lastAbilitiesUsed = b; return end
-    if b > lastAbilitiesUsed then abilityBaitFlag = true end
-    if a > lastAbilityUsed then
-        if abilityBaitFlag then abilityBaitFlag = false
-        else makeHitboxAndCheck(killer, function() fireBlock() end) end
+    local abilityLastUsedIncreased = (currentAbilityLastUsed > lastAbilityLastUsed)
+    local abilitiesUsedIncreased = (currentAbilitiesUsed > lastAbilitiesUsed)
+    if abilitiesUsedIncreased then
+        blockLocked = true
     end
-    lastAbilityUsed = a; lastAbilitiesUsed = b
+    if abilityLastUsedIncreased then
+        if blockLocked then
+            blockLocked = false
+        else
+            makeHitboxAndCheck(killer, function() fireBlock() end)
+        end
+    end
+    lastAbilityLastUsed = currentAbilityLastUsed
+    lastAbilitiesUsed = currentAbilitiesUsed
 end
 
 RunService.Heartbeat:Connect(function() if CONFIG.AutoBlock then pcall(checkKillerAttackC00l) end end)
-RunService.RenderStepped:Connect(function() if CONFIG.AutoBlock then pcall(checkKillerAttackC00l) end end)
 
 local function setAutoBlock(on)
     CONFIG.AutoBlock = on
-    if on then lastAbilityUsed, lastAbilitiesUsed, abilityBaitFlag = nil, nil, false end
+    if on then
+        lastAbilityLastUsed = nil
+        lastAbilitiesUsed = nil
+        blockLocked = false
+    end
 end
 
 local function GetClosestKiller(Distance)
@@ -962,6 +945,10 @@ combatTab:CreateSlider({ name = "Hitbox Multiplier", range = {0.1,5}, increment 
 combatTab:CreateSlider({ name = "Hitbox Distance", range = {1,20}, increment = 0.5, currentValue = 3, callback = function(v) CONFIG.HitboxDistance = v end })
 combatTab:CreateSlider({ name = "Hitbox Transparency", range = {0,1}, increment = 0.05, currentValue = 0.8, callback = function(v) CONFIG.HitboxTransparency = v end })
 combatTab:CreateSlider({ name = "Outline Transparency", range = {0,1}, increment = 0.05, currentValue = 0.6, callback = function(v) CONFIG.OutlineTransparencyValue = v end })
+
+combatTab:CreateSection("Hitbox Color")
+combatTab:CreateColorPicker({ name = "Hitbox Color", currentValue = CONFIG.HitboxColor, callback = function(v) CONFIG.HitboxColor = v end })
+
 combatTab:CreateToggle({ name = "Debug Log", currentValue = true, callback = function(v) CONFIG.DEBUG = v end })
 
 combatTab:CreateSection("Auto Backstab v4")
@@ -1199,4 +1186,4 @@ LocalPlayer.CharacterAdded:Connect(function()
     updateAutoBlockButtonVisibility()
 end)
 
-print("[NIGHTSAKEN-v62.4] LOADED - CoolKid 0.05s + Sixer 5.0 + FOV 30-120 + Button Hide/Show")
+print("[NIGHTSAKEN-v63.2] LOADED - Noli 0.37s + Fixsaken AutoBlock + Spam 4 phát + 0.05s")
